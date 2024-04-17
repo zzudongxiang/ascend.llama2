@@ -1,8 +1,8 @@
-# Llama2
+# Llama2部署记录
 
 ## 1. 创建docker
 
-### 1.1 常见的docker命令
+### 1.1 docker命令
 
 1. 显示全部的镜像：`docker images`
 2. 创建一个容器：`docker run ...`<查看1.2节内容>
@@ -12,7 +12,7 @@
 6. 进入一个正在运行的程序：`docker exec -it <id> /bin/bash`
 7. 删除一个容器：`docker rm <id>`
 
-### 1.2 创建一个docker容器
+### 1.2 创建容器
 
 创建一个docker容器的时候需要同时挂载本地工作目录和相关的程序驱动，因此创建docker容器的命令参数较多，以下为一个创建docker容器命令的基本格式：
 
@@ -41,6 +41,9 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /etc/bashrc:/etc/bashrc \
     -p 223:223 \
+    -p 224:6006 \
+    -p 225:8080 \
+    -p 226:8888 \    
     -u root \
     <image_id> /bin/bash
 ```
@@ -63,6 +66,9 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
 - `-v /etc/ascend_install.info:/etc/ascend_install.info`：[**NPU**]挂载安装信息
 - `-v /etc/bashrc:/etc/bashrc`：添加bash命令行的内容
 - `-p 223:223`：挂载端口，用于使用ssh直接登录docker容器内部
+- `-p 224:6006`：挂载端口，将TensorBoard端口映射到宿主
+- `-p 225:8080`：挂载端口，将MindInsight端口映射到宿主
+- `-p 226:8888`：挂载端口，将Jupyter端口映射到宿主
 - `-u root`：以root身份进入容器
 - `<image_id>`：要创建容器的镜像ID，可通过`docker images`查看
 - `/bin/bash`：进入容器后执行的命令，默认进入控制台
@@ -73,10 +79,12 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
 
 完成容器创建后可以通过`npu-smi info`命令查看NPU状态是否正常，若NPU正常挂载，则会输出NPU的数量、状态等基本信息。
 
-### 1.3 真实的创建命令
+<img src="./images/image-20240407110106052.png" alt="image-20240407110106052" style="zoom:50%;" />
+
+### 1.3 创建实例
 
 ```bash
-docker run -it --ipc=host --name zhangdx-test -v ~:/root  \
+docker run -it --ipc=host --name zhangdx -v ~/workdir:/root  \
     --workdir=/root \
     --privileged \
     --device=/dev/davinci0 \
@@ -98,15 +106,18 @@ docker run -it --ipc=host --name zhangdx-test -v ~:/root  \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /etc/bashrc:/etc/bashrc \
     -u root \
-    -p 2234:2234 \
+    -p 223:223 \
+    -p 224:6006 \
+    -p 225:8080 \
+    -p 226:8888 \
     47f84079ea47 /bin/bash
 ```
 
-## 2. 配置SSH登录
+## 2. 配置SSH
 
 为了使用外部IDE（VSCode或MindStudio等）连接Docker内的编译环境，需要使用SSH将容器内的操作系统通过SSH映射到外部
 
-### 2.1 安装OpenSSH-Server
+### 2.1 安装SSH-Server
 
 需要安装SSH Server，并修改管理员密码，或配置SSH-Key登录的方式登录到Docker内部
 
@@ -117,7 +128,7 @@ apt update
 apt install -y nano openssh-server
 ```
 
-### 2.2 修改SSH的配置
+### 2.2 修改SSH配置
 
 使用如下命令修改Docker内部root用户的密码
 
@@ -187,10 +198,9 @@ nano ~/.ssh/authorized_keys
 nano ~/.bashrc
 ```
 
-- 在最后添加`source /usr/local/Ascend/ascend-toolkit/set_env.sh`
-- 添加`export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/common/:$LD_LIBRARY_PATH`
-- 添加`export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/driver/:$LD_LIBRARY_PATH`
-- 添加`export LD_LIBRARY_PATH=/usr/local/Ascend/driver/tools/hccn_tool/:$LD_LIBRARY_PATH`
+- 添加`source /usr/local/Ascend/ascend-toolkit/set_env.sh`
+- 添加`source /usr/local/Ascend/driver/bin/setenv.bash`
+- 添加`export PATH=/usr/local/Ascend/driver/tools/:$PATH`
 - 添加`export LD_LIBRARY_PATH=/usr/local/Ascend/add-ons/:$LD_LIBRARY_PATH`
 
 完成添加后，使用`source ~/.bashrc`命令重新装载`.bashrc`文件生效
@@ -220,29 +230,29 @@ source ~/.bashrc
 >
 > 在Ascend上下载的版本为：`Anaconda3-2024.02-1-Linux-aarch64.sh`
 
-### 2.2 常见的conda命令
+### 3.2 常见命令
 
 1. 查看全部的环境：`conda env list`
 2. 激活指定环境：`conda activate <name>`
 3. 创建新的环境：`conda create -n <name> python=<3.7.11>`
 4. 删除指定环境：`conda remove -n <name> --all`
 
-### 2.3 创建并进入指定Python环境
+### 3.3 创建环境
 
-使用如下命令创建一个名为`llama2`的Python环境，后续的所有操作都在该环境下进行
+使用如下命令创建一个名为`mindspore`的Python环境，后续的所有操作都在该环境下进行
 
 ```bash
-# 创建适用于llama2的虚拟环境（如果已经存在则无需重复创建）
-conda create -n llama2 python=3.7.11
+# 创建适用于mindspore的虚拟环境（如果已经存在则无需重复创建）
+conda create -n mindspore python=3.7.11
 # 进入虚拟环境
-conda activate llama2
+conda activate mindspore
 ```
 
-## 3. 配置Mindspore
+## 4. 安装CANN
 
-由于Llama2模型原生使用NCCL（NVIDIA Collective Communications Library）技术，这将导致在Ascend平台上无法正常的运行原生模型，因此需要使用[Mindspore Mindformers](https://gitee.com/mindspore/mindformers)框架下修改的Llama2模型。
+安装CANN之前需要确保NPU的驱动和固件已经完成安装，此步骤一般宿主机已完成，通过docker挂载到容器内部，可以正常使用
 
-### 3.1 安装CANN
+### 4.1 设备检查
 
 首先使用如下命令确定NPU已成功挂载到服务器上
 
@@ -252,11 +262,11 @@ lspci | grep accelerators
 
 在[昇腾社区](https://www.mindspore.cn/versions)中搜索对应的CANN版本，并下载，选择版本时请选择开发套件`toolkit`，文件格式为`*.run`，下载完成后使用FTP或SFTP等工具将文件传输至服务器中
 
+### 4.2 安装依赖
+
 在安装CANN之前需要安装一些必要的工具包，安装命令如下所示（以Ubuntu系统为例）
 
 ```bash
-# 更新apt的源
-apt update
 # 安装必备组件
 apt install -y nano gcc g++ make cmake zlib1g zlib1g-dev openssl libsqlite3-dev libssl-dev libffi-dev unzip pciutils net-tools libblas-dev gfortran libblas3
 ```
@@ -268,6 +278,8 @@ apt install -y nano gcc g++ make cmake zlib1g zlib1g-dev openssl libsqlite3-dev 
 ```bash
 pip install attrs numpy decorator sympy cffi pyyaml pathlib2 psutil protobuf scipy requests absl-py wheel typing_extensions
 ```
+
+### 4.3 安装CANN
 
 将下载的`*.run`文件通过FTP或SFTP等方式上传到服务器上，然后按照如下命令安装CANN开发包
 
@@ -284,23 +296,45 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 >
 > 这里使用的CANN版本为7.0.0，在选择版本时需要与MindSpore版本一致，也需要与Mindformers版本一致，否则将导致不可预料的问题。CANN与MindSpore版本匹配查询[网站](https://www.mindspore.cn/versions#ascend配套软件包)
 
-### 3.2 构建Mindspore
+## 5. 安装Mindspore
+
+由于Llama2模型原生使用NCCL（NVIDIA Collective Communications Library）技术，这将导致在Ascend平台上无法正常的运行原生模型，因此需要使用[Mindspore Mindformers](https://gitee.com/mindspore/mindformers)框架下修改的Llama2模型。
+
+### 5.1 使用pip安装
 
 Mindspore可以使用pip直接安装，安装过程参考[Mindspore](https://gitee.com/mindspore/mindspore)，pip安装的Mindspore版本参考如该[网站](https://www.mindspore.cn/versions)
 
 ```bash
 # 从以下网站获取对应的pip包网址
 # https://www.mindspore.cn/versions
-pip install https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.2.11/MindSpore/unified/aarch64/mindspore-2.2.11-cp37-cp37m-linux_aarch64.whl
+wget https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.2.11/MindSpore/unified/aarch64/mindspore-2.2.11-cp37-cp37m-linux_aarch64.whl
+# 使用pip安装
+pip install mindspore-2.2.11-cp37-cp37m-linux_aarch64.whl
 ```
 
 > [!TIP]
 >
 > 这里选择最新版Mindspore（2.2.11版本），硬件平台是Ascend910_Linux-aarch64的Python3.7版本的安装链接
 
-### 3.3 构建Mindformers
+### 5.2 使用源码安装
 
-可以使用git下载[Mindformers的源码](https://gitee.com/mindspore/mindformers)，然后使用自带的构建工具构建Mindformers环境，但是由于版本依赖问题，不是很推荐使用这种方法，可以使用pip安装对应版本的包
+不建议使用源码安装Mindspore，仓库内的版本号与CANN、Mindformers等容易发生不兼容问题，但是也可以根据[官方教程](https://gitee.com/mindspore/mindspore#安装)安装Mindspore
+
+### 5.3 验证安装结果
+
+使用如下命令验证Mindspore的安装结果
+
+```bash
+python -c "import mindspore;mindspore.set_context(device_target='Ascend');mindspore.run_check()"
+```
+
+![image-20240407110139690](./images/image-20240407110139690.png)
+
+## 6. 安装Mindformers
+
+### 6.1 使用pip安装
+
+在官方[安装页面](https://www.mindspore.cn/versions)找到与Mindspore版本一致的Mindformers安装包，下载并安装即可
 
 ```bash
 # 下载Mindformers
@@ -309,29 +343,60 @@ wget https://ms-release.obs.cn-north-4.myhuaweicloud.com/2.2.11/MindFormers/any/
 pip install mindformers-1.0.0-py3-none-any.whl
 ```
 
-### 3.4 环境配置结果验证
+### 6.2 使用源码安装
 
-- 使用`npu-smi info`查看docker创建时NPU是否正常挂载
+可以使用git下载[Mindformers的源码](https://gitee.com/mindspore/mindformers)，然后使用自带的构建工具构建Mindformers环境，但是由于版本依赖问题，不是很推荐使用这种方法，可以使用pip安装对应版本的包
 
-  <img src="./images/image-20240407110106052.png" alt="image-20240407110106052" style="zoom:50%;" />
+```bash
+# 下载Mindformers
+git clone -b dev https://gitee.com/mindspore/mindformers.git
+# 安装Mindformers
+cd mindformers
+bash build.sh
+```
 
-- 使用如下命令验证Mindspore的安装结果
+## 7. 安装Mindinsight
 
-  ```bash
-  python -c "import mindspore;mindspore.set_context(device_target='Ascend');mindspore.run_check()"
-  ```
+Mindinsight可以帮助分析使用Mindspore构建的应用的性能等信息，使用教程参考[官方连接](https://www.mindspore.cn/mindinsight/docs/zh-CN/master/index.html)
 
-  ![image-20240407110139690](./images/image-20240407110139690.png)
+### 7.1 使用pip安装
 
-## 4. 运行Llama2
+使用pip直接安装Mindinsight即可，但是需要注意其版本应与Mindspore版本一致
+
+```bash
+# 使用pip安装Mindinsight
+pip install mindinsight
+```
+
+> [!NOTE]
+>
+> 使用pip的安装时间很长，且中间可能会出现卡死的情况，请耐心等待安装完成
+
+### 7.2 使用源码安装
+
+参考[官方教程](https://www.mindspore.cn/mindinsight/docs/zh-CN/master/mindinsight_install.html)从源码编译并安装Mindinsight
+
+### 7.3 验证安装结果
+
+使用如下命令验证Mindinsight的安装结果
+
+```bash
+mindinsight start
+```
+
+![image-20240409185646434](./images/image-20240409185646434.png)
+
+## 8. 运行Llama2
 
 Mindformers自带Llama2的模型，可以直接使用API调用Llama2，在缺失权重文件和Token文件时会自动下载对应的缺失文件
 
-### 4.1 单机单卡推理
+### 8.1 API接口调用
 
 配置单机多卡或多机多卡需要额外的配置服务器的信息，这里先使用单机单卡推理任务验证环境是否配置成功，在任意文件夹创建如下Python文件，并命名为`llama2.py`
 
-可以根据如下几种API调用方法中的任意一种进行单机单卡推理任务，然后使用`python llama2.py`命令运行
+> [!NOTE]
+>
+> 可以根据如下几种API调用方法中的任意一种进行单机单卡推理任务，然后使用`python llama2.py`命令运行，使用API的接口调用Llama2需要提前使用pip安装Mindformers
 
 #### A. 基于AutoClass
 
@@ -364,6 +429,7 @@ print(response)
 #### B. 基于Pipeline
 
 ```python
+# llama2.py
 import mindspore
 from mindformers.pipeline import pipeline
 
@@ -376,7 +442,105 @@ print(pipeline_result)
 # [{'text_generation_text': ['<s>I love Beijing, because it’s a a city that is constantly changing. I have been living here for 10 years and I have']}]
 ```
 
-### 4.2 单机多卡xxx
+### 8.2 Mindspore推理
+
+使用API的方式调用Llama2推理性能较差，单机单卡在7B模型上大概只有1.3tokens/s的生成速度，通过下载Mindformers源码，并从源码编译运行Llama2模型将获得更快的推理速度，推理速度大概在10tokens/s左右。
+
+无论是基于Generate还是基于Pipeline的推理，文件的前半部分都是按照如下内容编写：
+
+```python
+import mindspore as ms
+import numpy as np
+import os
+from mindspore import load_checkpoint, load_param_into_net
+from mindspore.train import Model
+from mindformers import MindFormerConfig, LlamaConfig, TransformerOpParallelConfig, AutoTokenizer, LlamaForCausalLM, pipeline
+from mindformers import init_context, ContextConfig, ParallelContextConfig
+from mindformers.tools.utils import str2bool, get_real_rank
+from mindformers.trainer.utils import get_last_checkpoint
+
+# 初始化输入内容
+inputs = [
+    "I love Beijing, because",
+    "LLaMA is a",
+    "Huawei is a company that",
+    ]
+yaml_file="/path/to/yaml_file.yaml"
+use_past = False
+seq_length = 512
+checkpoint_path = "/path/ro/checkpoint.ckpt"
+model_type = "llama2_7b"
+
+# 读取配置文件
+config = MindFormerConfig(yaml_file)
+print(config)
+
+# 初始化环境
+tokenizer = AutoTokenizer.from_pretrained(model_type)
+init_context(use_parallel=config.use_parallel, context_config=config.context, parallel_config=config.parallel)
+model_config = LlamaConfig(**config.model.model_config)
+model_config.parallel_config = TransformerOpParallelConfig(**config.parallel_config)
+model_config.use_past = use_past
+model_config.seq_length = seq_length
+
+# 加载CheckPoint文件
+if checkpoint_path and not config.use_parallel:
+    model_config.checkpoint_name_or_path = checkpoint_path
+print(f"config is: {model_config}")
+
+# 构建模型
+model = LlamaForCausalLM(model_config)
+model.set_train(False)
+
+# 并行运行
+if config.use_parallel:
+    ckpt_path = os.path.join(checkpoint_path, "rank_{}".format(get_real_rank()))
+    ckpt_path = get_last_checkpoint(ckpt_path)
+    print("ckpt path: %s", str(ckpt_path))
+    warm_up_model = Model(model)
+    warm_up_model.infer_predict_layout(ms.Tensor(np.ones(shape=(1, model_config.seq_length)), ms.int32))
+    checkpoint_dict = load_checkpoint(ckpt_path)
+    not_load_network_params = load_param_into_net(model, checkpoint_dict)
+    print("Network parameters are not loaded: %s", str(not_load_network_params))
+```
+
+#### A. 基于Generate
+
+新建`llama2.py`文件，将以上内容和以下内容合并为一个文件，并根据实际情况修改python文件中的变量参数，然后直接使用python脚本运行即可。
+
+```python
+# 导入上一小节的Python代码
+...
+# 获取输出
+inputs_ids = tokenizer(inputs, max_length=model_config.seq_length, padding="max_length")["input_ids"]
+outputs = model.generate(inputs_ids,
+                         max_length=model_config.max_decode_length,
+                         do_sample=model_config.do_sample,
+                         top_k=model_config.top_k,
+                         top_p=model_config.top_p)
+for output in outputs:
+    print(tokenizer.decode(output))
+```
+
+#### B. 基于Pipeline
+
+基于Pipeline的推理调用方法，用法与上一节相似，也需要将公共部分的代码复制到该文件的前半部分。
+
+```python
+# 导入上一小节的Python代码
+...
+# 获取输出
+text_generation_pipeline = pipeline(task="text_generation", model=model, tokenizer=tokenizer)
+outputs = text_generation_pipeline(inputs,
+                                   max_length=model_config.max_decode_length,
+                                   do_sample=model_config.do_sample,
+                                   top_k=model_config.top_k,
+                                   top_p=model_config.top_p)
+for output in outputs:
+    print(output)
+```
+
+### 8.3 性能分析
 
 xxx
 
