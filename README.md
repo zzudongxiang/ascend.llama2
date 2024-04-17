@@ -147,6 +147,8 @@ nano /etc/ssh/sshd_config
 - 新增`Port 223`，这里的端口号应该与创建容器时的一致
 - 新增`PermitRootLogin yes`
 - 新增`PubkeyAuthentication yes`
+- 新增`ClientAliveInterval 30`，设置与客户端之间的心跳包间隔
+- 新增`ClientAliveCountMax 10`
 
 然后使用如下命令启动ssh并查看ssh的状态
 
