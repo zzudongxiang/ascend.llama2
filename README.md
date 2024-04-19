@@ -542,9 +542,39 @@ for output in outputs:
     print(output)
 ```
 
-### 8.3 性能分析
+## 9. 安装Pytorch
 
-xxx
+> 参考链接：
+>
+> https://www.hiascend.com/developer/techArticles/20230526-1?envFlag=1
+>
+> https://gitee.com/ascend/pytorch
+>
+> https://pytorch.org/get-started/locally
+
+```bash
+# 创建环境
+conda create -n pytorch python=3.10
+conda activate pytorch
+
+# 安装依赖
+pip install tornado cloudpickle attrs numpy decorator sympy cffi pyyaml pathlib2 psutil protobuf scipy requests absl-py wheel typing_extensions
+
+# 安装kernel包，需要与CANN包版本一致
+# 下载链接：https://www.hiascend.com/developer/download/community/result?module=cann&cann=7.0.0.beta1
+chmod +x Ascend-cann-kernels-910b_7.0.0_linux.run
+./Ascend-cann-kernels-910b_7.0.0_linux.run --install
+
+# 安装CPU版本的torch包，版本号需要与NPU版的一致
+pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu
+
+# 安装NPU版本的torch包
+wget https://gitee.com/ascend/pytorch/releases/download/v6.0.rc1-pytorch2.1.0/torch_npu-2.1.0.post3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+pip install ./torch_npu-2.1.0.post3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+
+# 验证安装结果
+python -c "import torch;import torch_npu; a = torch.ones(3, 4).npu(); print(a + a);"
+```
 
 ## 附录
 
