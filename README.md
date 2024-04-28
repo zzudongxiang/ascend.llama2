@@ -55,7 +55,7 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
 - `--workdir=<docker_path>`：重定向容器的工作路径到`<docker_path>`路径
 - `--pids-limit 409600`：<**可省略**>对容器内可以运行的进程数量限制
 - `--privileged`：使容器内的root具有容器外部root的权限
-- `--network=host`：~~<删除>指定容器的网络与宿主机相同~~
+- `--network=host`：指定容器的网络与宿主机相同
 - `--shm-size=128G`：<**可省略**>修改共享内存的大小
 - `--device=<device>`：挂载硬件设备
 - `-v /usr/local/Ascend/driver:/usr/local/Ascend/driver`：[**NPU**]挂载NPU驱动
@@ -86,6 +86,7 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
 ```bash
 docker run -it --ipc=host --name zhangdx -v ~/workdir:/root  \
     --workdir=/root \
+    --network=host \
     --privileged \
     --device=/dev/davinci0 \
     --device=/dev/davinci1 \
@@ -106,11 +107,7 @@ docker run -it --ipc=host --name zhangdx -v ~/workdir:/root  \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /etc/bashrc:/etc/bashrc \
     -u root \
-    -p 223:223 \
-    -p 224:6006 \
-    -p 225:8080 \
-    -p 226:8888 \
-    47f84079ea47 /bin/bash
+    ubuntu:20.04 /bin/bash
 ```
 
 ## 2. 配置SSH
