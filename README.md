@@ -84,7 +84,10 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
 ### 1.3 创建实例
 
 ```bash
-docker run -it --ipc=host --name zhangdx -v ~/workdir:/root  \
+docker run -it --ipc=host --name zhangdx-latest \
+    -v ~/workdir:/root/workdir \
+    -v ~/software:/root/software \
+    -v ~/.ssh:/root/.ssh \
     --workdir=/root \
     --network=host \
     --privileged \
