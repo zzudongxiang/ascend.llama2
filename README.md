@@ -83,11 +83,13 @@ docker run -it --ipc=host --name <name> -v <local_path>:<docker_path>  \
 
 ### 1.3 创建实例
 
+- 以下创建实例的过程仅适用于本人，请勿原样照抄
+
 ```bash
-docker run -it --ipc=host --name zhangdx-latest \
+docker run -it --ipc=host --name zhangdx-cann7.0.0 \
     -v ~/workdir:/root/workdir \
     -v ~/software:/root/software \
-    -v ~/.ssh:/root/.ssh \
+    -v ~/.ssh/id_rsa:/root/.ssh/id_rsa \
     --workdir=/root \
     --network=host \
     --privileged \
